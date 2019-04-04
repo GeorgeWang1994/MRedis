@@ -6,14 +6,14 @@ class Sortable(object):
     """
     sortable for redis
     """
-    def __init__(self, database=None, key=None):
+    def __init__(self, database=None, cache_key=None):
         self.database = database
-        self.key = key
+        self.cache_key = cache_key
 
     def sort(self, by_pattern=None, start=None, num=None, get_pattern=None, is_desc=False,
              is_alpha=False, store=None):
         return self.database.sort(
-            self.key, by=by_pattern, start=start, num=num, get=get_pattern,
+            self.cache_key, by=by_pattern, start=start, num=num, get=get_pattern,
             desc=is_desc, alpha=is_alpha, store=store,
         )
 
@@ -22,16 +22,16 @@ class Container(object):
     """
     基础空间
     """
-    def __init__(self, database=None, key=None):
+    def __init__(self, database=None, cache_key=None):
         self.database = database
-        self.key = key
+        self.cache_key = cache_key
 
     def delete(self):
         """
         删除key
         :return:
         """
-        self.database.delete(self.key)
+        self.database.delete(self.cache_key)
 
     def expire(self, seconds=None, timestamp=None):
         """
@@ -41,11 +41,11 @@ class Container(object):
         :return:
         """
         if seconds:
-            self.database.expire(self.key, seconds)
+            self.database.expire(self.cache_key, seconds)
         elif timestamp:
-            self.database.expireat(self.key, timestamp)
+            self.database.expireat(self.cache_key, timestamp)
         else:
-            self.database.persist(self.key)
+            self.database.persist(self.cache_key)
 
     def rename(self, new_key, check=True):
         """
@@ -55,16 +55,16 @@ class Container(object):
         :return:
         """
         if check:
-            self.database.renamenx(self.key, new_key)
+            self.database.renamenx(self.cache_key, new_key)
         else:
-            self.database.rename(self.key, new_key)
+            self.database.rename(self.cache_key, new_key)
 
     def left_seconds(self):
         """
         剩余的时间
         :return:
         """
-        return self.database.ttl(self.key)
+        return self.database.ttl(self.cache_key)
 
 
 class Hash(Container):
@@ -81,7 +81,7 @@ class Hash(Container):
         self.delete()
 
     def _del_key(self, *args):
-        self.database.hdel(self.key, args)
+        self.database.hdel(self.cache_key, args)
 
     def get(self, key, default=None):
         """
@@ -92,7 +92,7 @@ class Hash(Container):
         """
         if key not in self:
             return default
-        return self.database.hget(self.key, key)
+        return self.database.hget(self.cache_key, key)
 
     def __getitem__(self, key):
         """
@@ -108,7 +108,7 @@ class Hash(Container):
         :param key:
         :return:
         """
-        return self.database.hexist(self.key, key)
+        return self.database.hexist(self.cache_key, key)
 
     def __contains__(self, key):
         """
@@ -116,21 +116,21 @@ class Hash(Container):
         :param key:
         :return:
         """
-        return self.database.hexist(self.key, key)
+        return self.database.hexist(self.cache_key, key)
 
     def get_self(self):
         """
         获取字典内容
         :return:
         """
-        return self.database.hgetall(self.key)
+        return self.database.hgetall(self.cache_key)
 
     def items(self):
         """
         获取所有键值对
         :return:
         """
-        return self.database.hgetall(self.key)
+        return self.database.hgetall(self.cache_key)
 
     def _scan(self, cursor=0, pattern=None, count=None):
         """
@@ -140,7 +140,7 @@ class Hash(Container):
         :param count:
         :return:
         """
-        return self.database.hscan_iter(self.key, cursor, pattern, count)
+        return self.database.hscan_iter(self.cache_key, cursor, pattern, count)
 
     def __iter__(self):
         """
@@ -169,13 +169,13 @@ class Hash(Container):
         获取所有的key
         :return:
         """
-        return self.database.hkeys(self.key)
+        return self.database.hkeys(self.cache_key)
 
     def values(self):
         """
         获取所有的值
         """
-        return self.database.hvals(self.key)
+        return self.database.hvals(self.cache_key)
 
     def pop(self, key, default=None):
         """
@@ -212,7 +212,7 @@ class Hash(Container):
         """
         设置键值对
         """
-        self.database.hset(self.key, value)
+        self.database.hset(self.cache_key, key, value)
 
     def setdefault(self, key, default=None):
         """
@@ -234,7 +234,7 @@ class Hash(Container):
         """
         if not other:
             return
-        self.database.hmset(self.key, *(other.items()))
+        self.database.hmset(self.cache_key, *(other.items()))
 
     def __eq__(self, other):
         """
@@ -259,7 +259,7 @@ class Hash(Container):
         获取长度
         :return:
         """
-        return self.database.hlen(self.key)
+        return self.database.hlen(self.cache_key)
 
     def __le__(self, other):
         """
@@ -299,7 +299,7 @@ class Set(Sortable, Container):
         :param val:
         :return:
         """
-        self.database.sadd(self.key, val)
+        self.database.sadd(self.cache_key, val)
 
     def clear(self):
         """
@@ -311,7 +311,7 @@ class Set(Sortable, Container):
         """
         获取集合内容
         """
-        return self.database.smembers(self.key)
+        return self.database.smembers(self.cache_key)
 
     def difference(self, other, with_score=False):
         """
@@ -325,11 +325,11 @@ class Set(Sortable, Container):
         elif isinstance(other, set):
             values = other
         else:
-            raise Exception('parameter format error')
+            raise TypeError('parameter format error')
 
         if with_score:
-            return self.database.sdiffscore(self.key, values)
-        return self.database.sdiff(self.key, values)
+            return self.database.sdiffscore(self.cache_key, values)
+        return self.database.sdiff(self.cache_key, values)
 
     def difference_store(self, dest_key, *args):
         """
@@ -338,7 +338,7 @@ class Set(Sortable, Container):
         :param args:
         :return:
         """
-        return self.database.sdiffstore(self.key, dest_key, args)
+        return self.database.sdiffstore(self.cache_key, dest_key, args)
 
     def discard(self, val):
         """
@@ -346,7 +346,7 @@ class Set(Sortable, Container):
         :param val:
         :return:
         """
-        self.database.srem(self.key, val)
+        self.database.srem(self.cache_key, val)
 
     def intersection(self, other, with_score=False):
         """
@@ -360,11 +360,11 @@ class Set(Sortable, Container):
         elif isinstance(other, set):
             values = other
         else:
-            raise Exception('parameter format error')
+            raise TypeError('parameter format error')
 
         if with_score:
-            return self.database.sinterscore(self.key, values)
-        return self.database.sinter(self.key, values)
+            return self.database.sinterscore(self.cache_key, values)
+        return self.database.sinter(self.cache_key, values)
 
     def intersection_store(self, dest_key, *args):
         """
@@ -373,7 +373,7 @@ class Set(Sortable, Container):
         :param args:
         :return:
         """
-        return self.database.sinterstore(self.key, dest_key, args)
+        return self.database.sinterstore(self.cache_key, dest_key, args)
 
     def _scan(self, pattern=None, count=None):
         """
@@ -382,7 +382,7 @@ class Set(Sortable, Container):
         :param count:
         :return:
         """
-        return self.database.zscan_iter(self.key, pattern, count)
+        return self.database.zscan_iter(self.cache_key, pattern, count)
 
     def issubset(self, other):
         """
@@ -408,7 +408,7 @@ class Set(Sortable, Container):
         :param count:
         :return:
         """
-        return self.database.spop(self.key, count)
+        return self.database.spop(self.cache_key, count)
 
     def remove(self, *args):
         """
@@ -416,7 +416,7 @@ class Set(Sortable, Container):
         :param args:
         :return:
         """
-        self.database.srem(self.key, args)
+        self.database.srem(self.cache_key, args)
 
     def union(self, other, with_score=False):
         """
@@ -430,11 +430,11 @@ class Set(Sortable, Container):
         elif isinstance(other, set):
             values = other
         else:
-            raise Exception('parameter format error')
+            raise TypeError('parameter format error')
 
         if with_score:
-            return self.database.sunionstore(self.key, values)
-        return self.database.sunion(self.key, values)
+            return self.database.sunionstore(self.cache_key, values)
+        return self.database.sunion(self.cache_key, values)
 
     def union_store(self, dest_key, *args):
         """
@@ -443,7 +443,7 @@ class Set(Sortable, Container):
         :param args:
         :return:
         """
-        return self.database.sunionstore(self.key, dest_key, args)
+        return self.database.sunionstore(self.cache_key, dest_key, args)
 
     def update(self, other):
         """
@@ -459,7 +459,7 @@ class Set(Sortable, Container):
         :param count:
         :return:
         """
-        return self.database.srandmember(self.key, count)
+        return self.database.srandmember(self.cache_key, count)
 
     def __contains__(self, item):
         """
@@ -467,7 +467,7 @@ class Set(Sortable, Container):
         :param item:
         :return:
         """
-        return self.database.sismember(self.key, item)
+        return self.database.sismember(self.cache_key, item)
 
     def __iand__(self, other):
         """
@@ -504,7 +504,7 @@ class Set(Sortable, Container):
         """
         获取长度
         """
-        return self.database.scard(self.key)
+        return self.database.scard(self.cache_key)
 
 
 class ZSet(Sortable, Container):
@@ -528,7 +528,7 @@ class ZSet(Sortable, Container):
             _mapping.update(kwargs)
         else:
             _mapping = mapping
-        self.database.zadd(self.key, _mapping)
+        self.database.zadd(self.cache_key, _mapping)
 
     def incr(self, member, amount=1.):
         """
@@ -537,7 +537,7 @@ class ZSet(Sortable, Container):
         :param amount:
         :return:
         """
-        self.database.zincrby(self.key, amount, member)
+        self.database.zincrby(self.cache_key, amount, member)
 
     def intersection_store(self, dest_key, *args):
         """
@@ -546,7 +546,7 @@ class ZSet(Sortable, Container):
         :param args:
         :return:
         """
-        return self.database.zinterstore(self.key, dest_key, args)
+        return self.database.zinterstore(self.cache_key, dest_key, args)
 
     def union_store(self, dest_key, *args):
         """
@@ -555,7 +555,7 @@ class ZSet(Sortable, Container):
         :param args:
         :return:
         """
-        return self.database.zunionstore(self.key, dest_key, args)
+        return self.database.zunionstore(self.cache_key, dest_key, args)
 
     def pop_max(self, count=1):
         """
@@ -563,7 +563,7 @@ class ZSet(Sortable, Container):
         :param count:
         :return:
         """
-        return self.database.zpopmax(self.key, count)
+        return self.database.zpopmax(self.cache_key, count)
 
     def pop_min(self, count=1):
         """
@@ -571,7 +571,7 @@ class ZSet(Sortable, Container):
         :param count:
         :return:
         """
-        return self.database.zpopmin(self.key, count)
+        return self.database.zpopmin(self.cache_key, count)
 
     def __getitem__(self, item):
         """
@@ -588,9 +588,9 @@ class ZSet(Sortable, Container):
             else:
                 return self.range(start, stop, True)
         elif isinstance(item, int):
-            return self.database.zscore(self.key, item)
+            return self.database.zscore(self.cache_key, item)
         else:
-            raise Exception(u'parameter format error')
+            raise TypeError(u'parameter format error')
 
     def __setitem__(self, item, value):
         """
@@ -629,8 +629,8 @@ class ZSet(Sortable, Container):
         :return:
         """
         if not is_reverse:
-            return self.database.zrange(self.key, start, stop, is_desc, is_with_scores)
-        return self.database.zrevrange(self.key, start, stop, is_with_scores)
+            return self.database.zrange(self.cache_key, start, stop, is_desc, is_with_scores)
+        return self.database.zrevrange(self.cache_key, start, stop, is_with_scores)
 
     def range_by_score(self, min, max, start=None, stop=None, is_reverse=False, is_with_scores=False):
         """
@@ -658,8 +658,8 @@ class ZSet(Sortable, Container):
         :return:
         """
         if not is_reverse:
-            return self.database.zrank(self.key, value)
-        return self.database.zrevrank(self.key, value)
+            return self.database.zrank(self.cache_key, value)
+        return self.database.zrevrank(self.cache_key, value)
 
     def score(self, value):
         """
@@ -667,7 +667,7 @@ class ZSet(Sortable, Container):
         :param value:
         :return:
         """
-        return self.database.zscore(self.key, value)
+        return self.database.zscore(self.cache_key, value)
 
     def remove(self, *members):
         """
@@ -675,7 +675,7 @@ class ZSet(Sortable, Container):
         :param members:
         :return:
         """
-        self.database.zrem(self.key, members)
+        self.database.zrem(self.cache_key, members)
 
     def remove_by_rank(self, min, max):
         """
@@ -684,7 +684,7 @@ class ZSet(Sortable, Container):
         :param max:
         :return:
         """
-        self.database.zremrangebyrank(self.key, min, max)
+        self.database.zremrangebyrank(self.cache_key, min, max)
 
     def remove_by_score(self, min, max):
         """
@@ -693,7 +693,7 @@ class ZSet(Sortable, Container):
         :param max:
         :return:
         """
-        self.database.zremrangebyscore(self.key, min, max)
+        self.database.zremrangebyscore(self.cache_key, min, max)
 
     def __repr__(self):
         return self.get_self()
@@ -718,7 +718,7 @@ class ZSet(Sortable, Container):
         elif isinstance(other, dict):
             self.append(other)
         else:
-            raise Exception(u'parameter format error')
+            raise TypeError(u'parameter format error')
 
     def __contains__(self, item):
         """
@@ -736,7 +736,7 @@ class ZSet(Sortable, Container):
         """
         获取长度
         """
-        return self.database.zcard(self.key)
+        return self.database.zcard(self.cache_key)
 
 
 class List(Sortable, Container):
@@ -745,7 +745,7 @@ class List(Sortable, Container):
         获取列表内容
         :return:
         """
-        return self.database.lrange(self.key, 0, -1)
+        return self.database.lrange(self.cache_key, 0, -1)
 
     def append(self, val):
         """
@@ -753,7 +753,7 @@ class List(Sortable, Container):
         :param val:
         :return:
         """
-        self.database.rpush(self.key, val)
+        self.database.rpush(self.cache_key, val)
 
     def count(self, val):
         """
@@ -770,7 +770,7 @@ class List(Sortable, Container):
         :param values:
         :return:
         """
-        self.database.rpush(self.key, values)
+        self.database.rpush(self.cache_key, values)
 
     def insert(self, index, value):
         """
@@ -779,7 +779,7 @@ class List(Sortable, Container):
         :param value:
         :return:
         """
-        self.database.linsert(self.key, index, 'before', value)
+        self.database.linsert(self.cache_key, index, 'before', value)
 
     def pop(self, index=None):
         """
@@ -788,18 +788,18 @@ class List(Sortable, Container):
         :return:
         """
         if not self:
-            raise Exception("empty list")
+            raise TypeError("empty list")
 
         if index is None:
-            return self.database.rpop(self.key)
+            return self.database.rpop(self.cache_key)
         else:
             l = len(self)
             if not (0 <= index < l):
-                raise Exception('index is out of range')
+                raise TypeError('index is out of range')
 
             val = self[index]
-            self.database.lset(self.key, index, "__del")
-            self.database.lrem(self.key, 1, "__del")
+            self.database.lset(self.cache_key, index, "__del")
+            self.database.lrem(self.cache_key, 1, "__del")
             return val
 
     def remove(self, value, count=1):
@@ -810,8 +810,8 @@ class List(Sortable, Container):
         :return:
         """
         if value not in self:
-            raise Exception("not found in the list")
-        self.database.lrem(self.key, count, value)
+            raise TypeError("not found in the list")
+        self.database.lrem(self.cache_key, count, value)
 
     def __delitem__(self, index):
         """
@@ -828,7 +828,7 @@ class List(Sortable, Container):
         :param j:
         :return:
         """
-        self.database.ltrim(self.key, start, end)
+        self.database.ltrim(self.cache_key, start, end)
 
     def __getitem__(self, item):
         """
@@ -848,7 +848,7 @@ class List(Sortable, Container):
         :param end:
         :return:
         """
-        return self.database.lrange(self.key, start, end)
+        return self.database.lrange(self.cache_key, start, end)
 
     def __iadd__(self, other):
         """
@@ -861,7 +861,7 @@ class List(Sortable, Container):
         elif isinstance(other, Iterable):
             values = other
         else:
-            raise Exception('parameter format error')
+            raise TypeError('parameter format error')
 
         self.extend(values)
 
@@ -876,7 +876,7 @@ class List(Sortable, Container):
         获取列表长度
         :return:
         """
-        return self.database.llen(self.key)
+        return self.database.llen(self.cache_key)
 
     def __repr__(self):
         return self.get_self()
@@ -890,5 +890,5 @@ class List(Sortable, Container):
         """
         l = len(self)
         if not (0 <= index < l):
-            raise Exception('index is out of range')
-        return self.database.lset(self.key, index, val)
+            raise TypeError('index is out of range')
+        return self.database.lset(self.cache_key, index, val)
