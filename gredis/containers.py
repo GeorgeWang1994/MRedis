@@ -755,6 +755,14 @@ class List(Sortable, Container):
         """
         self.database.rpush(self.cache_key, val)
 
+    def prepend(self, val):
+        """
+        往数组头添加值
+        :param val:
+        :return:
+        """
+        self.database.lpush(self.cache_key, val)
+
     def count(self, val):
         """
         获取值在列表中出现的次数
@@ -790,8 +798,11 @@ class List(Sortable, Container):
         if not self:
             raise TypeError("empty list")
 
-        if index is None:
+        ll = len(self)
+        if index is None or index == ll - 1:
             return self.database.rpop(self.cache_key)
+        if index == 0:
+            return self.database.lpop(self.cache_key)
         else:
             l = len(self)
             if not (0 <= index < l):
@@ -801,6 +812,22 @@ class List(Sortable, Container):
             self.database.lset(self.cache_key, index, "__del")
             self.database.lrem(self.cache_key, 1, "__del")
             return val
+
+    def block_pop_left(self, timeout=0):
+        """
+        阻塞弹出列表头部的值
+        :param timeout:
+        :return:
+        """
+        return self.database.blpop(self.cache_key, timeout)
+
+    def block_pop_right(self, timeout=0):
+        """
+        阻塞弹出列表头部的值
+        :param timeout:
+        :return:
+        """
+        return self.database.brpop(self.cache_key, timeout)
 
     def remove(self, value, count=1):
         """
@@ -892,3 +919,44 @@ class List(Sortable, Container):
         if not (0 <= index < l):
             raise TypeError('index is out of range')
         return self.database.lset(self.cache_key, index, val)
+
+
+class HyperLogLog(Container):
+    """
+    redis命令huyperlolog
+    """
+    def add(self, *args):
+        """
+        添加值
+        :param args:
+        :return:
+        """
+        self.database.pfadd(self.cache_key, args)
+
+    def count(self):
+        """
+        获取个数
+        :return:
+        """
+        return self.database.pfcount()
+
+    def __len__(self):
+        return self.count()
+
+    def __ior__(self, other):
+        if not isinstance(other, Iterable):
+            raise TypeError('parameter format error')
+
+        return self.merge(self.cache_key, *other)
+
+    def merge(self, dest, *others):
+        """
+        合并
+        :param dest:
+        :param others:
+        :return:
+        """
+        items = [self.cache_key]
+        items.extend([other.cache_key for other in others])
+        self.database.pfmerge(dest, *items)
+        return HyperLogLog(self.database, dest)
