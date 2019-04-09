@@ -923,7 +923,8 @@ class List(Sortable, Container):
 
 class HyperLogLog(Container):
     """
-    redis命令huyperlolog
+    redis命令hyperloglog
+    hyperloglog是用来做基数统计的
     """
     def add(self, *args):
         """
@@ -960,3 +961,229 @@ class HyperLogLog(Container):
         items.extend([other.cache_key for other in others])
         self.database.pfmerge(dest, *items)
         return HyperLogLog(self.database, dest)
+
+
+class Stream(Container):
+    """
+    流
+    """
+    def add(self, mapping, id="*", maxlen=None):
+        """
+        加入到流中
+        :param mapping:
+        :param id:
+        :param maxlen:
+        :return: message's id
+        """
+        return self.database.xadd(self.cache_key, mapping, id, maxlen)
+
+    def range(self, start='-', end='+', count=None):
+        """
+        获取指定范围的信息流
+        :param start: 最旧的消息
+        :param end: 最新的信息
+        :param count: 返回的信息个数
+        :return:
+        """
+        return self.database.xrange(self.cache_key, start, end, count)
+
+    def revrange(self, start='+', end='-', count=None):
+        """
+        获取反向的指定范围的信息流
+        :param start: 最新的消息
+        :param end: 最旧的消息
+        :param count: 返回的信息个数
+        :return:
+        """
+        return self.database.xrevrange(self.cache_key, start, end, count)
+
+    def __getitem__(self, item):
+        """
+        获取信息
+        :param item:
+        :return:
+        """
+        if isinstance(item, slice):
+            return self.database.range(item.start, item.stop, item.stop - item.start + 1)
+
+        return self.database.get(item)
+
+    def get(self, msg_id):
+        """
+        根据id获取信息流
+        :param msg_id:
+        :return:
+        """
+        res = self[msg_id:msg_id:1]
+        if res:
+            return res[0]
+
+    def __len__(self):
+        """
+        获取长度
+        :return:
+        """
+        return self.database.xlen(self.cache_key)
+
+    def remove(self, msg_ids):
+        """
+        删除消息
+        :param msg_ids:
+        :return:
+        """
+        self.database.xdel(self.cache_key, msg_ids)
+
+    def remove_old(self, count):
+        """
+        删除旧的消息
+        :param count:
+        :return:
+        """
+        self.database.xtrim(self.cache_key, count)
+
+    def remove_group(self, group_key):
+        """
+        根据消费组名字删除指定消费组
+        :param group_key:
+        :return:
+        """
+        self.database.xgroup_destory(self.cache_key, group_key)
+
+    def __delitem__(self, item):
+        """
+        删除消息id列表
+        :param item:
+        :return:
+        """
+        if not isinstance(item, slice):
+            item = (item, )
+        self.remove(item)
+
+    def read(self, last_id=None, count=None, block=None, is_reverse=False):
+        """
+        获取信息
+        xread命令中的streams指的是 字典表形式{流的名称：消息id}
+        :param last_id: 已被读取的最后一条消息的id
+        :param count:
+        :param block: 阻塞时间（毫秒）
+        :param is_reverse: 是否从头读取，默认从头读取
+        :return:
+        """
+        if not last_id:
+            if not is_reverse:
+                last_id = "0-0"
+            else:
+                last_id = "$"
+        return self.database.xread({self.cache_key: last_id}, count, block)
+
+    def info(self):
+        """
+        获取流的信息
+        :return:
+        """
+        return self.database.xinfo_stream(self.cache_key)
+
+    def consumers_info(self, group_key):
+        """
+        返回消费者信息
+        :param group_key:
+        :return:
+        """
+        return self.database.xinfo_consumers(self.cache_key, group_key)
+
+    def groups_info(self):
+        """
+        获取消费组信息
+        :return:
+        """
+        return self.database.xinfo_groups(self.cache_key)
+
+
+class ConsumerGroup(object):
+    def __init__(self, database, cache_key, stream_keys):
+        self.database = database
+        self.cache_key = cache_key
+        self.stream_keys = stream_keys
+        for stream_key in stream_keys:
+            self._create(stream_key)
+
+    def _create(self, stream_key, start_id='$'):
+        """
+        在steam上创建新的消费组
+        :param stream_key: 消息流的key
+        :param start_id: 起始消息id，默认从尾部开始消费，只接受新消息，当前Stream消息会全部忽略
+        :return: 最近被消费的id
+        """
+        return self.database.xgroup_create(stream_key, self.cache_key, start_id)
+
+    def remove_consumer(self, stream_key, consumer_key):
+        """
+        从消费组移除消费者
+        :param stream_key:
+        :param consumer_key:
+        :return:
+        """
+        self.database.xgroup_delconsumer(stream_key, self.cache_key, consumer_key)
+
+    def delete(self):
+        """
+        销毁消费组
+        :return:
+        """
+        for stream_key in self.stream_keys:
+            self.database.xgroup_destroy(stream_key, self.cache_key)
+
+    def set_id(self, last_id='$'):
+        """
+        设置消费者最近一次的消费id
+        :param last_id:最近一次消费的id
+        :return:
+        """
+        for stream_key in self.stream_keys:
+            self.database.xgroup_setid(stream_key, self.cache_key, last_id)
+
+    def streams_info(self):
+        """
+        获取流的信息
+        :return:
+        """
+        res = {}
+        for stream_key in self.stream_keys:
+            res[stream_key] = self.database.xinfo_stream(stream_key)
+        return res
+
+    def read(self, consumer_key, count=None, block=None, noack=False):
+        """
+        从消费者中读取信息
+        :param consumer_key:
+        :param count:
+        :param block:
+        :param noack:
+        :return:
+        """
+        return self.database.xreadgroup(self.cache_key, consumer_key, self.stream_keys, count, block)
+
+    def pending(self):
+        """
+        消费组中待处理的消息
+        :return:
+        """
+        res = {}
+        for stream_key in self.stream_keys:
+            res[stream_key] = self.database.xpending(stream_key, self.cache_key)
+        return res
+
+    def pending_range(self, min_stream_id, max_stream_id, count, consumer_key=None):
+        """
+        获取消费组中指定范围的待处理消息
+        :param min_stream_id:
+        :param max_stream_id:
+        :param count:
+        :param consumer_key:
+        :return:
+        """
+        res = {}
+        for stream_key in self.stream_keys:
+            res[stream_key] = self.database.xpending_range(stream_key, self.cache_key, min_stream_id,
+                                                           max_stream_id, count, consumer_key)
+        return res
