@@ -384,24 +384,6 @@ class Set(Sortable, Container):
         """
         return self.database.zscan_iter(self.cache_key, pattern, count)
 
-    def issubset(self, other):
-        """
-        判断是否是子集
-        :param other:
-        :return:
-        """
-        cur = self.get_self()
-        return cur.issubset(other)
-
-    def issuperset(self, other):
-        """
-        判断是否是父集
-        :param other:
-        :return:
-        """
-        cur = self.get_self()
-        return cur.issuperset(other)
-
     def pop(self, count=1):
         """
         随机弹出值
