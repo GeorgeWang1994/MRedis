@@ -1,5 +1,6 @@
 # -*- coding: UTF-8 -*-
 from collections import Iterable
+from exception import HashTypeException, HashKeyException, SetTypeException
 
 
 class Sortable(object):
@@ -81,7 +82,7 @@ class Hash(Container):
         self.delete()
 
     def _del_key(self, *args):
-        self.database.hdel(self.cache_key, args)
+        self.database.hdel(self.cache_key, *args)
 
     def get(self, key, default=None):
         """
@@ -93,6 +94,50 @@ class Hash(Container):
         if key not in self:
             return default
         return self.database.hget(self.cache_key, key)
+
+    def incr(self, key, amount=1):
+        """
+        增加指定值
+        :param key:
+        :param amount:
+        :return:
+        """
+        if not isinstance(amount, int):
+            raise HashTypeException(u'类型错误')
+        self.database.hincrby(self.cache_key, key, amount)
+
+    def desc(self, key, amount=1):
+        """
+        减去指定值
+        :param key:
+        :param amount:
+        :return:
+        """
+        if not isinstance(amount, int):
+            raise HashTypeException(u'类型错误')
+        self.database.hincrby(self.cache_key, key, -amount)
+
+    def incr_float(self, key, amount=1.0):
+        """
+        增加指定值
+        :param key:
+        :param amount:
+        :return:
+        """
+        if not isinstance(amount, float):
+            raise HashTypeException(u'类型错误')
+        self.database.hincrbyfloat(self.cache_key, key, amount)
+
+    def desc_float(self, key, amount=1.0):
+        """
+        减去指定值
+        :param key:
+        :param amount:
+        :return:
+        """
+        if not isinstance(amount, float):
+            raise HashTypeException(u'类型错误')
+        self.database.hincrbyfloat(self.cache_key, key, -amount)
 
     def __getitem__(self, key):
         """
@@ -108,7 +153,7 @@ class Hash(Container):
         :param key:
         :return:
         """
-        return self.database.hexist(self.cache_key, key)
+        return self.database.hexists(self.cache_key, key)
 
     def __contains__(self, key):
         """
@@ -116,7 +161,7 @@ class Hash(Container):
         :param key:
         :return:
         """
-        return self.database.hexist(self.cache_key, key)
+        return self.database.hexists(self.cache_key, key)
 
     def get_self(self):
         """
@@ -130,17 +175,16 @@ class Hash(Container):
         获取所有键值对
         :return:
         """
-        return self.database.hgetall(self.cache_key)
+        return self.get_self().items()
 
-    def _scan(self, cursor=0, pattern=None, count=None):
+    def _scan(self, pattern=None, count=None):
         """
         分片读取，避免一次获取大量的数据导致内存被挤爆
-        :param cursor:
         :param pattern:
         :param count:
         :return:
         """
-        return self.database.hscan_iter(self.cache_key, cursor, pattern, count)
+        return self.database.hscan_iter(self.cache_key, pattern, count)
 
     def __iter__(self):
         """
@@ -187,11 +231,10 @@ class Hash(Container):
         if key not in self:
             if default:
                 return default
-            else:
-                raise KeyError(u'not found the key')
+            raise HashKeyException(u'not found the key')
 
         value = self.get(key)
-        self._del_key([key])
+        self._del_key(key)
         return value
 
     def popitem(self):
@@ -200,7 +243,7 @@ class Hash(Container):
         :return:
         """
         if not self:
-            raise KeyError(u'empty hash')
+            raise HashKeyException(u'empty hash')
 
         rand_key, rand_val = next(self.iteritems())
         return rand_key, self.pop(rand_key)
@@ -234,25 +277,12 @@ class Hash(Container):
         """
         if not other:
             return
-        self.database.hmset(self.cache_key, *(other.items()))
-
-    def __eq__(self, other):
-        """
-        判断是否相等
-        :param other:
-        :return:
-        """
-        cur = self.get_self()
-        return cur == other
-
-    def __cmp__(self, other):
-        """
-        进行比较
-        :param other:
-        :return:
-        """
-        cur = self.get_self()
-        return cmp(cur, other)
+        if isinstance(other, Hash):
+            self.database.hmset(self.cache_key, other.get_self())
+        elif isinstance(other, dict):
+            self.database.hmset(self.cache_key, other)
+        else:
+            raise HashTypeException(u'类型错误')
 
     def __len__(self):
         """
@@ -260,33 +290,6 @@ class Hash(Container):
         :return:
         """
         return self.database.hlen(self.cache_key)
-
-    def __le__(self, other):
-        """
-        判断小于等于
-        :param other:
-        :return:
-        """
-        cur = self.get_self()
-        return cur <= other
-
-    def __ge__(self, other):
-        """
-        判断大于等于
-        :param other:
-        :return:
-        """
-        cur = self.get_self()
-        return cur >= other
-
-    def __ne__(self, other):
-        """
-        判断不等于
-        :param other:
-        :return:
-        """
-        cur = self.get_self()
-        return cur != other
 
 
 class Set(Sortable, Container):
@@ -313,33 +316,6 @@ class Set(Sortable, Container):
         """
         return self.database.smembers(self.cache_key)
 
-    def difference(self, other, with_score=False):
-        """
-        取差集
-        :param other:
-        :param with_score:
-        :return:
-        """
-        if isinstance(other, Set):
-            values = other.get_self()
-        elif isinstance(other, set):
-            values = other
-        else:
-            raise TypeError('parameter format error')
-
-        if with_score:
-            return self.database.sdiffscore(self.cache_key, values)
-        return self.database.sdiff(self.cache_key, values)
-
-    def difference_store(self, dest_key, *args):
-        """
-        将差集的结果存储到新的key中
-        :param dest_key:
-        :param args:
-        :return:
-        """
-        return self.database.sdiffstore(self.cache_key, dest_key, args)
-
     def discard(self, val):
         """
         删除值
@@ -348,33 +324,6 @@ class Set(Sortable, Container):
         """
         self.database.srem(self.cache_key, val)
 
-    def intersection(self, other, with_score=False):
-        """
-        取交集
-        :param other:
-        :param with_score:
-        :return:
-        """
-        if isinstance(other, Set):
-            values = other.get_self()
-        elif isinstance(other, set):
-            values = other
-        else:
-            raise TypeError('parameter format error')
-
-        if with_score:
-            return self.database.sinterscore(self.cache_key, values)
-        return self.database.sinter(self.cache_key, values)
-
-    def intersection_store(self, dest_key, *args):
-        """
-        将交集的结果存储到新的key中
-        :param dest_key:
-        :param args:
-        :return:
-        """
-        return self.database.sinterstore(self.cache_key, dest_key, args)
-
     def _scan(self, pattern=None, count=None):
         """
         分片读取，避免一次获取大量的数据导致内存被挤爆
@@ -382,7 +331,7 @@ class Set(Sortable, Container):
         :param count:
         :return:
         """
-        return self.database.zscan_iter(self.cache_key, pattern, count)
+        return self.database.sscan_iter(self.cache_key, pattern, count)
 
     def pop(self, count=1):
         """
@@ -398,25 +347,22 @@ class Set(Sortable, Container):
         :param args:
         :return:
         """
-        self.database.srem(self.cache_key, args)
+        self.database.srem(self.cache_key, *args)
 
-    def union(self, other, with_score=False):
+    def union(self, *args):
         """
         取并集
-        :param other:
-        :param with_score:
+        :param args:
         :return:
         """
-        if isinstance(other, Set):
-            values = other.get_self()
-        elif isinstance(other, set):
-            values = other
-        else:
-            raise TypeError('parameter format error')
+        keys = [self.cache_key]
+        for obj in args:
+            if isinstance(obj, Set):
+                keys.append(obj.cache_key)
+            else:
+                raise SetTypeException(u'类型错误')
 
-        if with_score:
-            return self.database.sunionstore(self.cache_key, values)
-        return self.database.sunion(self.cache_key, values)
+        return self.database.sunion(*keys)
 
     def union_store(self, dest_key, *args):
         """
@@ -425,7 +371,76 @@ class Set(Sortable, Container):
         :param args:
         :return:
         """
-        return self.database.sunionstore(self.cache_key, dest_key, args)
+        keys = [self.cache_key]
+        for obj in args:
+            if isinstance(obj, Set):
+                keys.append(obj.cache_key)
+            else:
+                raise SetTypeException(u'类型错误')
+
+        return self.database.sunionstore(dest_key, *keys)
+
+    def intersection(self, *args):
+        """
+        取交集
+        :param args:
+        :return:
+        """
+        keys = [self.cache_key]
+        for obj in args:
+            if isinstance(obj, Set):
+                keys.append(obj.cache_key)
+            else:
+                raise SetTypeException(u'类型错误')
+
+        return self.database.sinter(*keys)
+
+    def intersection_store(self, dest_key, *args):
+        """
+        将交集的结果存储到新的key中
+        :param dest_key:
+        :param args:
+        :return:
+        """
+        keys = [self.cache_key]
+        for obj in args:
+            if isinstance(obj, Set):
+                keys.append(obj.cache_key)
+            else:
+                raise SetTypeException(u'类型错误')
+
+        return self.database.sinterstore(dest_key, *keys)
+
+    def difference(self, *args):
+        """
+        取差集，取集合中第一个key存在而其他key不存在的
+        :param args:
+        :return:
+        """
+        keys = [self.cache_key]
+        for obj in args:
+            if isinstance(obj, Set):
+                keys.append(obj.cache_key)
+            else:
+                raise SetTypeException(u'类型错误')
+
+        return self.database.sdiff(*keys)
+
+    def difference_store(self, dest_key, *args):
+        """
+        将差集的结果存储到新的key中
+        :param dest_key:
+        :param args:
+        :return:
+        """
+        keys = [self.cache_key]
+        for obj in args:
+            if isinstance(obj, Set):
+                keys.append(obj.cache_key)
+            else:
+                raise SetTypeException(u'类型错误')
+
+        return self.database.sdiffstore(dest_key, *keys)
 
     def update(self, other):
         """
@@ -433,13 +448,18 @@ class Set(Sortable, Container):
         :param other:
         :return:
         """
-        return self.union(other)
+        if isinstance(other, Set):
+            self.union_store(self.cache_key, other)
+        elif isinstance(other, Iterable):
+            self.database.sadd(self.cache_key, *other)
+        else:
+            raise SetTypeException(u'类型错误')
 
     def rand(self, count=None):
         """
         返回指定个数的值
         :param count:
-        :return:
+        :return: list
         """
         return self.database.srandmember(self.cache_key, count)
 
@@ -451,36 +471,53 @@ class Set(Sortable, Container):
         """
         return self.database.sismember(self.cache_key, item)
 
+    def __and__(self, other):
+        """
+        cur & other
+        :param other:
+        :return:
+        """
+        return self.intersection(other)
+
     def __iand__(self, other):
         """
         cur &= other
         """
-        return self.intersection(other)
+        return self.intersection_store(self.cache_key, other)
+
+    def __or__(self, other):
+        """
+        cur | other
+        :param other:
+        :return:
+        """
+        return self.union(other)
 
     def __ior__(self, other):
         """
         cur |= other
         """
-        return self.union(other)
+        return self.union_store(self.cache_key, other)
+
+    def __sub__(self, other):
+        """
+        cur - other
+        :param other:
+        :return:
+        """
+        return self.difference(other)
 
     def __isub__(self, other):
         """
         cur -= other
         """
-        return self.difference(other)
+        return self.difference_store(self.cache_key, other)
 
     def __iter__(self):
         """
         迭代器
-        :return:
         """
         return iter(self._scan())
-
-    def __ixor__(self, other):
-        """
-        cur ^= other
-        """
-        pass
 
     def __len__(self):
         """

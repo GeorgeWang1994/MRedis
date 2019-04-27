@@ -2,8 +2,10 @@
 
 from redis import Redis
 
+from .badge import BadgeManager
 from .containers import List, Set, ZSet, Hash, HyperLogLog
 from .counter import Counter
+from .lock import Lock
 from .rate_limit import RateLimit
 
 
@@ -88,3 +90,21 @@ class GRedis(Redis):
         :return:
         """
         return RateLimit(self, cache_key, limit, per, ret)
+
+    def Lock(self, cache_key, expire_times=60 * 60 * 24):
+        """
+        创建锁
+        :param cache_key:
+        :param expire_times:
+        :return:
+        """
+        return Lock(self, cache_key, expire_times)
+
+    def BadgeManager(self, basic_cache_key, expire_time=60 * 60 * 24):
+        """
+        创建badge管理
+        :param basic_cache_key:
+        :param expire_time:
+        :return:
+        """
+        return BadgeManager(self, basic_cache_key, expire_time)
