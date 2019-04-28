@@ -1,6 +1,7 @@
 # -*- coding: UTF-8 -*-
 from collections import Iterable
-from exception import HashTypeException, HashKeyException, SetTypeException
+from .exception import HashTypeException, HashKeyException, SetTypeException, SortedSetTypeException, \
+    ListEmptyException, ListNotExistException, ListTypeException, ListIndexErrorException
 
 
 class Sortable(object):
@@ -73,7 +74,7 @@ class Hash(Container):
     哈希
     """
     def __repr__(self):
-        return self.get_self()
+        return self.data()
 
     def clear(self):
         """
@@ -163,7 +164,7 @@ class Hash(Container):
         """
         return self.database.hexists(self.cache_key, key)
 
-    def get_self(self):
+    def data(self):
         """
         获取字典内容
         :return:
@@ -175,7 +176,7 @@ class Hash(Container):
         获取所有键值对
         :return:
         """
-        return self.get_self().items()
+        return self.data().items()
 
     def _scan(self, pattern=None, count=None):
         """
@@ -251,11 +252,11 @@ class Hash(Container):
     def __delitem__(self, key):
         self._del_key(key)
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, item, value):
         """
         设置键值对
         """
-        self.database.hset(self.cache_key, key, value)
+        self.database.hset(self.cache_key, item, value)
 
     def setdefault(self, key, default=None):
         """
@@ -278,7 +279,7 @@ class Hash(Container):
         if not other:
             return
         if isinstance(other, Hash):
-            self.database.hmset(self.cache_key, other.get_self())
+            self.database.hmset(self.cache_key, other.data())
         elif isinstance(other, dict):
             self.database.hmset(self.cache_key, other)
         else:
@@ -310,7 +311,7 @@ class Set(Sortable, Container):
         """
         self.delete()
 
-    def get_self(self):
+    def data(self):
         """
         获取集合内容
         """
@@ -526,14 +527,23 @@ class Set(Sortable, Container):
         return self.database.scard(self.cache_key)
 
 
-class ZSet(Sortable, Container):
-    def get_self(self, is_with_score=False):
+class SortedSet(Sortable, Container):
+    def data(self, is_with_score=True):
         """
         返回有序集合的结果
         :param is_with_score:
         :return:
         """
         return self.range(0, -1, False, is_with_score)
+
+    def _scan(self, pattern=None, count=None):
+        """
+        分片读取，避免一次获取大量的数据导致内存被挤爆
+        :param pattern:
+        :param count:
+        :return:
+        """
+        return self.database.zscan_iter(self.cache_key, pattern, count)
 
     def append(self, mapping=None, **kwargs):
         """
@@ -542,21 +552,36 @@ class ZSet(Sortable, Container):
         :param kwargs:
         :return:
         """
-        if not mapping:
-            _mapping = mapping.copy()
-            _mapping.update(kwargs)
-        else:
+        if not mapping and not kwargs:
+            raise SortedSetTypeException(u'类型错误')
+        if not kwargs:
             _mapping = mapping
+        else:
+            _mapping = mapping.copy() if mapping else {}
+            _mapping.update(kwargs)
         self.database.zadd(self.cache_key, _mapping)
 
-    def incr(self, member, amount=1.):
+    def incr(self, member, amount=1):
         """
         增加指定值
         :param member:
         :param amount:
         :return:
         """
+        if not isinstance(amount, int):
+            raise SortedSetTypeException(u'类型错误')
         self.database.zincrby(self.cache_key, amount, member)
+
+    def desc(self, member, amount=1):
+        """
+        减去指定值
+        :param member:
+        :param amount:
+        :return:
+        """
+        if not isinstance(amount, int):
+            raise SortedSetTypeException(u'类型错误')
+        self.database.zincrby(self.cache_key, -amount, member)
 
     def intersection_store(self, dest_key, *args):
         """
@@ -565,7 +590,14 @@ class ZSet(Sortable, Container):
         :param args:
         :return:
         """
-        return self.database.zinterstore(self.cache_key, dest_key, args)
+        keys = [self.cache_key]
+        for obj in args:
+            if isinstance(obj, Set):
+                keys.append(obj.cache_key)
+            else:
+                raise SortedSetTypeException(u'类型错误')
+
+        return self.database.zinterstore(dest_key, keys)
 
     def union_store(self, dest_key, *args):
         """
@@ -574,21 +606,28 @@ class ZSet(Sortable, Container):
         :param args:
         :return:
         """
-        return self.database.zunionstore(self.cache_key, dest_key, args)
+        keys = [self.cache_key]
+        for obj in args:
+            if isinstance(obj, Set):
+                keys.append(obj.cache_key)
+            else:
+                raise SortedSetTypeException(u'类型错误')
+
+        return self.database.zunionstore(dest_key, keys)
 
     def pop_max(self, count=1):
         """
-        弹出指定个数的最大值（根据分值排序）
+        弹出指定个数的最大值（根据分值排序），在redis5中的功能
         :param count:
-        :return:
+        :return: [(member, score),]，其中member变成byte字节符，score变成浮点数
         """
         return self.database.zpopmax(self.cache_key, count)
 
     def pop_min(self, count=1):
         """
-        弹出指定个数的最小值（根据分值排序）
+        弹出指定个数的最小值（根据分值排序），在redis5中的功能
         :param count:
-        :return:
+        :return: [(member, score),]
         """
         return self.database.zpopmin(self.cache_key, count)
 
@@ -609,7 +648,7 @@ class ZSet(Sortable, Container):
         elif isinstance(item, int):
             return self.database.zscore(self.cache_key, item)
         else:
-            raise TypeError(u'parameter format error')
+            raise SortedSetTypeException(u'类型错误')
 
     def __setitem__(self, item, value):
         """
@@ -626,16 +665,12 @@ class ZSet(Sortable, Container):
         :param item:
         :return:
         """
-        self.remove([item])
-
-    def __delslice__(self, min, max):
-        """
-        删除成员
-        :param min:
-        :param max:
-        :return:
-        """
-        self.remove_by_rank(min, max)
+        if isinstance(item, slice):
+            start = item.start or 0
+            stop = item.stop or len(self)
+            self.remove_by_rank(start, stop)
+        else:
+            self.remove(item)
 
     def range(self, start, stop, is_reverse=False, is_desc=False, is_with_scores=False):
         """
@@ -651,11 +686,11 @@ class ZSet(Sortable, Container):
             return self.database.zrange(self.cache_key, start, stop, is_desc, is_with_scores)
         return self.database.zrevrange(self.cache_key, start, stop, is_with_scores)
 
-    def range_by_score(self, min, max, start=None, stop=None, is_reverse=False, is_with_scores=False):
+    def range_by_score(self, mi, ma, start=None, stop=None, is_reverse=False, is_with_scores=False):
         """
         根据分值来取
-        :param min:
-        :param max:
+        :param mi:
+        :param ma:
         :param start:
         :param stop:
         :param is_reverse:
@@ -663,11 +698,11 @@ class ZSet(Sortable, Container):
         :return:
         """
         num = None
-        if stop and start:
+        if stop is not None and start is not None:
             num = stop - start + 1
         if not is_reverse:
-            return self.database.zrangebyscore(min, max, start, num, is_with_scores)
-        return self.database.zrevrangebyscore(min, max, start, num, is_with_scores)
+            return self.database.zrangebyscore(self.cache_key, mi, ma, start, num, is_with_scores)
+        return self.database.zrevrangebyscore(self.cache_key, ma, mi, start, num, is_with_scores)
 
     def rank(self, value, is_reverse=False):
         """
@@ -694,28 +729,28 @@ class ZSet(Sortable, Container):
         :param members:
         :return:
         """
-        self.database.zrem(self.cache_key, members)
+        self.database.zrem(self.cache_key, *members)
 
-    def remove_by_rank(self, min, max):
+    def remove_by_rank(self, mi, ma):
         """
-        通过排名来删除
-        :param min:
-        :param max:
+        通过排名来删除下标在mi至ma区间内的所有元素
+        :param mi:
+        :param ma:
         :return:
         """
-        self.database.zremrangebyrank(self.cache_key, min, max)
+        self.database.zremrangebyrank(self.cache_key, mi, ma)
 
-    def remove_by_score(self, min, max):
+    def remove_by_score(self, mi, ma):
         """
         通过分值来删除
-        :param min:
-        :param max:
+        :param mi:
+        :param ma:
         :return:
         """
-        self.database.zremrangebyscore(self.cache_key, min, max)
+        self.database.zremrangebyscore(self.cache_key, mi, ma)
 
     def __repr__(self):
-        return self.get_self()
+        return self.data()
 
     def __reversed__(self):
         """
@@ -730,14 +765,15 @@ class ZSet(Sortable, Container):
         :param other:
         :return:
         """
-        if isinstance(other, ZSet):
-            self.append(dict(other.get_self(True)))
-        elif isinstance(other, (list, tuple)):
+        if isinstance(other, SortedSet):
+            self.append(dict(other.data()))
+        elif isinstance(other, Iterable):
             self.append(dict(other))
         elif isinstance(other, dict):
             self.append(other)
         else:
-            raise TypeError(u'parameter format error')
+            raise SortedSetTypeException(u'类型错误')
+        return self
 
     def __contains__(self, item):
         """
@@ -749,7 +785,7 @@ class ZSet(Sortable, Container):
         """
         iter for set
         """
-        return iter(self.get_self())
+        return iter(self._scan())
 
     def __len__(self):
         """
@@ -759,7 +795,7 @@ class ZSet(Sortable, Container):
 
 
 class List(Sortable, Container):
-    def get_self(self):
+    def data(self):
         """
         获取列表内容
         :return:
@@ -782,31 +818,24 @@ class List(Sortable, Container):
         """
         self.database.lpush(self.cache_key, val)
 
-    def count(self, val):
-        """
-        获取值在列表中出现的次数
-        :param val:
-        :return:
-        """
-        cur = self.get_self()
-        return cur.count(val)
-
     def extend(self, values):
         """
         添加数组
         :param values:
         :return:
         """
-        self.database.rpush(self.cache_key, values)
+        self.database.rpush(self.cache_key, *values)
 
-    def insert(self, index, value):
+    def insert_by_value(self, item, value, is_before=True):
         """
         往指定位置插入值
-        :param index:
+        :param item:
         :param value:
+        :param is_before:
         :return:
         """
-        self.database.linsert(self.cache_key, index, 'before', value)
+        where = 'BEFORE' if is_before else 'AFTER'
+        self.database.linsert(self.cache_key, where, item, value)
 
     def pop(self, index=None):
         """
@@ -814,10 +843,10 @@ class List(Sortable, Container):
         :param index:
         :return:
         """
-        if not self:
-            raise TypeError("empty list")
-
         ll = len(self)
+        if not ll:
+            raise ListEmptyException("不允许为空")
+
         if index is None or index == ll - 1:
             return self.database.rpop(self.cache_key)
         if index == 0:
@@ -825,7 +854,7 @@ class List(Sortable, Container):
         else:
             l = len(self)
             if not (0 <= index < l):
-                raise TypeError('index is out of range')
+                raise ListIndexErrorException('越界错误')
 
             val = self[index]
             self.database.lset(self.cache_key, index, "__del")
@@ -855,26 +884,21 @@ class List(Sortable, Container):
         :param count:
         :return:
         """
-        if value not in self:
-            raise TypeError("not found in the list")
         self.database.lrem(self.cache_key, count, value)
 
-    def __delitem__(self, index):
+    def trim(self, start, end):
         """
-        删除指定下标的值
-        :param index:
-        :return:
-        """
-        self.pop(index)
-
-    def __delslice__(self, start, end):
-        """
-        删除区间
-        :param i:
-        :param j:
+        保留指定区间的值
+        :param start:
+        :param end:
         :return:
         """
         self.database.ltrim(self.cache_key, start, end)
+
+    def __delitem__(self, item):
+        if not isinstance(item, int):
+            raise ListTypeException(u'类型错误')
+        self.pop(item)
 
     def __getitem__(self, item):
         """
@@ -883,18 +907,14 @@ class List(Sortable, Container):
         if isinstance(item, slice):
             start = item.start or 0
             stop = item.stop or len(self)
-            return self[start, stop]
-
-        return self[item]
-
-    def __getslice__(self, start, end):
-        """
-        获取区间的值
-        :param start:
-        :param end:
-        :return:
-        """
-        return self.database.lrange(self.cache_key, start, end)
+            return self.database.lrange(self.cache_key, start, stop)
+        elif isinstance(item, int):
+            result = self.database.lrange(self.cache_key, item, item)
+            if not result:
+                raise ListIndexErrorException(u'越界错误')
+            return result[0]
+        else:
+            raise ListTypeException(u'类型错误')
 
     def __iadd__(self, other):
         """
@@ -903,19 +923,20 @@ class List(Sortable, Container):
         :return:
         """
         if isinstance(other, List):
-            values = other.get_self()
-        elif isinstance(other, Iterable):
+            values = other.data()
+        elif isinstance(other, list):
             values = other
         else:
-            raise TypeError('parameter format error')
+            raise ListTypeException(u'类型错误')
 
         self.extend(values)
+        return self
 
     def __iter__(self):
         """
         iter for list
         """
-        return iter(self.get_self())
+        return iter(self.data())
 
     def __len__(self):
         """
@@ -925,19 +946,21 @@ class List(Sortable, Container):
         return self.database.llen(self.cache_key)
 
     def __repr__(self):
-        return self.get_self()
+        return self.data()
 
-    def __setitem__(self, index, val):
+    def __setitem__(self, item, value):
         """
         设置值
-        :param index:
-        :param val:
+        :param item:
+        :param value:
         :return:
         """
-        l = len(self)
-        if not (0 <= index < l):
-            raise TypeError('index is out of range')
-        return self.database.lset(self.cache_key, index, val)
+        if not isinstance(item, int):
+            raise ListTypeException(u'类型错误')
+        ll = len(self)
+        if not (0 <= item < ll):
+            raise ListIndexErrorException(u'越界错误')
+        return self.database.lset(self.cache_key, item, value)
 
 
 class HyperLogLog(Container):

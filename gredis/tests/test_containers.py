@@ -1,6 +1,6 @@
 # -*- coding: UTF-8 -*-
 
-from test_basic import TestBasic
+from .test_basic import TestBasic
 
 
 class TestHash(TestBasic):
@@ -154,3 +154,127 @@ class TestSet(TestBasic):
         self.set1.update(values)
         for val in self.set1:
             self.assertTrue(int(val) in values)
+
+
+class TestSortedSet(TestBasic):
+    """
+    测试有序集合
+    """
+    def setUp(self):
+        super(TestSortedSet, self).setUp()
+        self.sorted_set = self.gredis.SortedSet('test_sorted_set')
+
+    def test_append_remove(self):
+        """
+        测试添加删除
+        """
+        self.sorted_set.append({'third': 3, 'second': 2, 'first': 1})
+        self.sorted_set.append(fifth=5, forth=4)
+
+        result = self.sorted_set.pop_max(1)
+        self.assertEqual(result[0], (b'fifth', 5.0))
+        self.assertEqual(len(self.sorted_set), 4)
+
+        result = self.sorted_set.pop_min(1)
+        self.assertEqual(result[0], (b'first', 1.0))
+        self.assertEqual(len(self.sorted_set), 3)
+
+        del self.sorted_set['second']
+        self.assertEqual(len(self.sorted_set), 2)
+
+        self.sorted_set.remove('third')
+        self.assertEqual(len(self.sorted_set), 1)
+
+        del self.sorted_set[:1]
+        self.assertEqual(len(self.sorted_set), 0)
+
+        self.sorted_set.append({'third': 3, 'second': 2, 'first': 1})
+        self.assertEqual(len(self.sorted_set), 3)
+
+        # 删除两个，分别是first和second
+        self.sorted_set.remove_by_rank(0, 1)
+        self.assertEqual(len(self.sorted_set), 1)
+        # 没有删除
+        self.sorted_set.remove_by_score(0, 1)
+        self.assertEqual(len(self.sorted_set), 1)
+        self.assertTrue('third' in self.sorted_set)
+        # 删除third
+        self.sorted_set.remove_by_score(2, 3)
+        self.assertEqual(len(self.sorted_set), 0)
+
+    def test_get_set(self):
+        """
+        测试获取设置
+        """
+        self.sorted_set['first'] = 1
+        self.sorted_set.append({'third': 3, 'second': 2})
+        # 测试range
+        result = self.sorted_set.range(0, 1)
+        self.assertEqual(result, [b'first', b'second'])
+        result = self.sorted_set.range(0, 1, is_desc=True)
+        self.assertEqual(result, [b'third', b'second'])
+        result = self.sorted_set.range(0, 1, is_reverse=True)
+        self.assertEqual(result, [b'third', b'second'])
+        result = self.sorted_set.range(0, 1, is_with_scores=True)
+        self.assertEqual(result, [(b'first', 1), (b'second', 2)])
+
+        # 测试range_by_score
+        result = self.sorted_set.range_by_score(1, 2)
+        self.assertEqual(result, [b'first', b'second'])
+        result = self.sorted_set.range_by_score(1, 2, 0, 1)
+        self.assertEqual(result, [b'first', b'second'])
+        result = self.sorted_set.range_by_score(1, 2, is_reverse=True)
+        self.assertEqual(result, [b'second', b'first'])
+        result = self.sorted_set.range_by_score(1, 2, is_with_scores=True)
+        self.assertEqual(result, [(b'first', 1.0), (b'second', 2.0)])
+
+        # 测试rank和score
+        result = self.sorted_set.score('first')
+        self.assertEqual(result, 1)
+        result = self.sorted_set.rank('first')
+        self.assertEqual(result, 0)
+
+    def test_iter(self):
+        """
+        测试遍历
+        """
+        self.sorted_set.append({'third': 3, 'second': 2, 'first': 1})
+        for member, score in self.sorted_set:
+            self.assertTrue(member)
+            self.assertTrue(score)
+
+
+class TestList(TestBasic):
+    """
+    测试列表
+    """
+    def setUp(self):
+        super(TestList, self).setUp()
+        self.list = self.gredis.List('test_list')
+
+    def test_append_remove(self):
+        """
+        测试添加删除
+        """
+        self.list.append(10)
+        self.list.extend([20, 30, 40])
+        self.list.prepend(0)
+        self.assertEqual(len(self.list), 5)
+        self.list.insert_by_value(10, 1)
+        self.assertEqual(len(self.list), 6)
+        self.list.pop(0)
+        self.assertEqual(len(self.list), 5)
+        self.list.remove(1)
+        self.assertEqual(len(self.list), 4)
+        self.list[0] = 1
+        self.assertEqual(len(self.list), 4)
+        del self.list[0]
+        self.assertEqual(len(self.list), 3)
+        self.list.trim(0, 0)
+        self.assertEqual(len(self.list), 1)
+        self.list += [1, 2, 3]
+        self.assertEqual(len(self.list), 4)
+        result = self.list[1: 3]
+        self.assertEqual(result, [b'1', b'2', b'3'])
+        result = self.list[-1]
+        self.assertEqual(result, b'3')

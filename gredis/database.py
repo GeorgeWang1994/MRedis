@@ -3,7 +3,7 @@
 from redis import Redis
 
 from .badge import BadgeManager
-from .containers import List, Set, ZSet, Hash, HyperLogLog
+from .containers import List, Set, SortedSet, Hash, HyperLogLog
 from .counter import Counter
 from .lock import Lock
 from .rate_limit import RateLimit
@@ -47,13 +47,13 @@ class GRedis(Redis):
         """
         return Set(self, cache_key)
 
-    def ZSet(self, cache_key):
+    def SortedSet(self, cache_key):
         """
         创建有序集合对象
         :param cache_key:
         :return:
         """
-        return ZSet(self, cache_key)
+        return SortedSet(self, cache_key)
 
     def Hash(self, cache_key):
         """

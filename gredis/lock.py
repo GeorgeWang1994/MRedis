@@ -8,7 +8,7 @@
 import functools
 import hashlib
 
-from exception import LockReleaseException
+from .exception import LockReleaseException
 
 
 class Lock(object):
