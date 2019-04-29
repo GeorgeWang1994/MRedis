@@ -1,7 +1,7 @@
 # -*- coding: UTF-8 -*-
 from collections import Iterable
-from .exception import HashTypeException, HashKeyException, SetTypeException, SortedSetTypeException, \
-    ListEmptyException, ListNotExistException, ListTypeException, ListIndexErrorException
+
+from .exception import TypeException, EmptyException, IndexErrorException
 
 
 class Sortable(object):
@@ -104,7 +104,7 @@ class Hash(Container):
         :return:
         """
         if not isinstance(amount, int):
-            raise HashTypeException(u'类型错误')
+            raise TypeException(u'类型错误')
         self.database.hincrby(self.cache_key, key, amount)
 
     def desc(self, key, amount=1):
@@ -115,7 +115,7 @@ class Hash(Container):
         :return:
         """
         if not isinstance(amount, int):
-            raise HashTypeException(u'类型错误')
+            raise TypeException(u'类型错误')
         self.database.hincrby(self.cache_key, key, -amount)
 
     def incr_float(self, key, amount=1.0):
@@ -126,7 +126,7 @@ class Hash(Container):
         :return:
         """
         if not isinstance(amount, float):
-            raise HashTypeException(u'类型错误')
+            raise TypeException(u'类型错误')
         self.database.hincrbyfloat(self.cache_key, key, amount)
 
     def desc_float(self, key, amount=1.0):
@@ -137,7 +137,7 @@ class Hash(Container):
         :return:
         """
         if not isinstance(amount, float):
-            raise HashTypeException(u'类型错误')
+            raise TypeException(u'类型错误')
         self.database.hincrbyfloat(self.cache_key, key, -amount)
 
     def __getitem__(self, key):
@@ -232,7 +232,7 @@ class Hash(Container):
         if key not in self:
             if default:
                 return default
-            raise HashKeyException(u'not found the key')
+            raise TypeException(u'not found the key')
 
         value = self.get(key)
         self._del_key(key)
@@ -244,7 +244,7 @@ class Hash(Container):
         :return:
         """
         if not self:
-            raise HashKeyException(u'empty hash')
+            raise TypeException(u'empty hash')
 
         rand_key, rand_val = next(self.iteritems())
         return rand_key, self.pop(rand_key)
@@ -283,7 +283,7 @@ class Hash(Container):
         elif isinstance(other, dict):
             self.database.hmset(self.cache_key, other)
         else:
-            raise HashTypeException(u'类型错误')
+            raise TypeException(u'类型错误')
 
     def __len__(self):
         """
@@ -315,7 +315,7 @@ class Set(Sortable, Container):
         """
         获取集合内容
         """
-        return self.database.smembers(self.cache_key)
+        return set(self.database.smembers(self.cache_key))
 
     def discard(self, val):
         """
@@ -361,7 +361,7 @@ class Set(Sortable, Container):
             if isinstance(obj, Set):
                 keys.append(obj.cache_key)
             else:
-                raise SetTypeException(u'类型错误')
+                raise TypeException(u'类型错误')
 
         return self.database.sunion(*keys)
 
@@ -377,14 +377,14 @@ class Set(Sortable, Container):
             if isinstance(obj, Set):
                 keys.append(obj.cache_key)
             else:
-                raise SetTypeException(u'类型错误')
+                raise TypeException(u'类型错误')
 
         return self.database.sunionstore(dest_key, *keys)
 
     def intersection(self, *args):
         """
         取交集
-        :param args:
+        :param args: set对象
         :return:
         """
         keys = [self.cache_key]
@@ -392,7 +392,7 @@ class Set(Sortable, Container):
             if isinstance(obj, Set):
                 keys.append(obj.cache_key)
             else:
-                raise SetTypeException(u'类型错误')
+                raise TypeException(u'类型错误')
 
         return self.database.sinter(*keys)
 
@@ -408,7 +408,7 @@ class Set(Sortable, Container):
             if isinstance(obj, Set):
                 keys.append(obj.cache_key)
             else:
-                raise SetTypeException(u'类型错误')
+                raise TypeException(u'类型错误')
 
         return self.database.sinterstore(dest_key, *keys)
 
@@ -423,7 +423,7 @@ class Set(Sortable, Container):
             if isinstance(obj, Set):
                 keys.append(obj.cache_key)
             else:
-                raise SetTypeException(u'类型错误')
+                raise TypeException(u'类型错误')
 
         return self.database.sdiff(*keys)
 
@@ -439,7 +439,7 @@ class Set(Sortable, Container):
             if isinstance(obj, Set):
                 keys.append(obj.cache_key)
             else:
-                raise SetTypeException(u'类型错误')
+                raise TypeException(u'类型错误')
 
         return self.database.sdiffstore(dest_key, *keys)
 
@@ -454,7 +454,7 @@ class Set(Sortable, Container):
         elif isinstance(other, Iterable):
             self.database.sadd(self.cache_key, *other)
         else:
-            raise SetTypeException(u'类型错误')
+            raise TypeException(u'类型错误')
 
     def rand(self, count=None):
         """
@@ -553,7 +553,7 @@ class SortedSet(Sortable, Container):
         :return:
         """
         if not mapping and not kwargs:
-            raise SortedSetTypeException(u'类型错误')
+            raise TypeException(u'类型错误')
         if not kwargs:
             _mapping = mapping
         else:
@@ -569,7 +569,7 @@ class SortedSet(Sortable, Container):
         :return:
         """
         if not isinstance(amount, int):
-            raise SortedSetTypeException(u'类型错误')
+            raise TypeException(u'类型错误')
         self.database.zincrby(self.cache_key, amount, member)
 
     def desc(self, member, amount=1):
@@ -580,7 +580,7 @@ class SortedSet(Sortable, Container):
         :return:
         """
         if not isinstance(amount, int):
-            raise SortedSetTypeException(u'类型错误')
+            raise TypeException(u'类型错误')
         self.database.zincrby(self.cache_key, -amount, member)
 
     def intersection_store(self, dest_key, *args):
@@ -595,7 +595,7 @@ class SortedSet(Sortable, Container):
             if isinstance(obj, Set):
                 keys.append(obj.cache_key)
             else:
-                raise SortedSetTypeException(u'类型错误')
+                raise TypeException(u'类型错误')
 
         return self.database.zinterstore(dest_key, keys)
 
@@ -611,7 +611,7 @@ class SortedSet(Sortable, Container):
             if isinstance(obj, Set):
                 keys.append(obj.cache_key)
             else:
-                raise SortedSetTypeException(u'类型错误')
+                raise TypeException(u'类型错误')
 
         return self.database.zunionstore(dest_key, keys)
 
@@ -648,7 +648,7 @@ class SortedSet(Sortable, Container):
         elif isinstance(item, int):
             return self.database.zscore(self.cache_key, item)
         else:
-            raise SortedSetTypeException(u'类型错误')
+            raise TypeException(u'类型错误')
 
     def __setitem__(self, item, value):
         """
@@ -772,7 +772,7 @@ class SortedSet(Sortable, Container):
         elif isinstance(other, dict):
             self.append(other)
         else:
-            raise SortedSetTypeException(u'类型错误')
+            raise TypeException(u'类型错误')
         return self
 
     def __contains__(self, item):
@@ -845,7 +845,7 @@ class List(Sortable, Container):
         """
         ll = len(self)
         if not ll:
-            raise ListEmptyException("不允许为空")
+            raise EmptyException("不允许为空")
 
         if index is None or index == ll - 1:
             return self.database.rpop(self.cache_key)
@@ -854,7 +854,7 @@ class List(Sortable, Container):
         else:
             l = len(self)
             if not (0 <= index < l):
-                raise ListIndexErrorException('越界错误')
+                raise IndexErrorException('越界错误')
 
             val = self[index]
             self.database.lset(self.cache_key, index, "__del")
@@ -897,7 +897,7 @@ class List(Sortable, Container):
 
     def __delitem__(self, item):
         if not isinstance(item, int):
-            raise ListTypeException(u'类型错误')
+            raise TypeException(u'类型错误')
         self.pop(item)
 
     def __getitem__(self, item):
@@ -911,10 +911,10 @@ class List(Sortable, Container):
         elif isinstance(item, int):
             result = self.database.lrange(self.cache_key, item, item)
             if not result:
-                raise ListIndexErrorException(u'越界错误')
+                raise IndexErrorException(u'越界错误')
             return result[0]
         else:
-            raise ListTypeException(u'类型错误')
+            raise TypeException(u'类型错误')
 
     def __iadd__(self, other):
         """
@@ -927,7 +927,7 @@ class List(Sortable, Container):
         elif isinstance(other, list):
             values = other
         else:
-            raise ListTypeException(u'类型错误')
+            raise TypeException(u'类型错误')
 
         self.extend(values)
         return self
@@ -956,10 +956,10 @@ class List(Sortable, Container):
         :return:
         """
         if not isinstance(item, int):
-            raise ListTypeException(u'类型错误')
+            raise TypeException(u'类型错误')
         ll = len(self)
         if not (0 <= item < ll):
-            raise ListIndexErrorException(u'越界错误')
+            raise IndexErrorException(u'越界错误')
         return self.database.lset(self.cache_key, item, value)
 
 
