@@ -9,12 +9,12 @@ from .lock import Lock
 from .rate_limit import RateLimit
 
 
-class GRedis(Redis):
+class MRedis(Redis):
     """
     redis客户端
     """
     def __init__(self, *args, **kwargs):
-        super(GRedis, self).__init__(*args, **kwargs)
+        super(MRedis, self).__init__(*args, **kwargs)
 
     def __iter__(self):
         """

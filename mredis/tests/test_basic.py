@@ -8,16 +8,16 @@
 
 import unittest
 
-from gredis.database import GRedis
+from mredis.database import MRedis
 
 
 class TestBasic(unittest.TestCase):
     def __init__(self, *args, **kwargs):
-        self.gredis = GRedis(host='localhost', port=6379, decode_responses=True)
+        self.mredis = MRedis(host='localhost', port=6379, decode_responses=True)
         super(TestBasic, self).__init__(*args, **kwargs)
 
     def setUp(self):
-        self.gredis.flushdb()
+        self.mredis.flushdb()
 
     def tearDown(self):
-        self.gredis.flushdb()
+        self.mredis.flushdb()

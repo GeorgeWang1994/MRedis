@@ -1,0 +1,8 @@
+language: python
+dist: mredis
+python:
+  - 3.6
+services:
+  - redis-server
+install: "pip install -r requirements.txt"
+script: python runtests.py

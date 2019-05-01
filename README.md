@@ -1,13 +1,13 @@
-# GRedis
+# MRedis
 
 Lightweight Python utilities for working with [Redis](http://redis.io).
 
-GRedis是为了能够在Python中更加方便快捷的使用Redis而开发的，而且尽量让开发人员避免去重新的
-学习一个库。GRedis是基于`redis-py`的基础上开发的。
+MRedis是为了能够在Python中更加方便快捷的使用Redis而开发的，而且尽量让开发人员避免去重新的
+学习一个库。MRedis是基于`redis-py`的基础上开发的。
 
 ## 数据结构与封装
 
-GRedis的数据结构包括：
+MRedis的数据结构包括：
 
 * Hash
 * Set
@@ -30,10 +30,10 @@ GRedis的数据结构包括：
 
 ```python
 
-from gredis.database import GRedis
+from mredis.database import MRedis
 
-gredis = GRedis(host='localhost', port=6379, decode_responses=True) 
-hash = gredis.Hash('test_hash')
+mredis = MRedis(host='localhost', port=6379, decode_responses=True) 
+hash = mredis.Hash('test_hash')
 
 hash["first"] = 1
 hash.update({"second": 2, "third": 3})
@@ -55,11 +55,11 @@ for key, val in hash:
 
 ```python
 
-from gredis.database import GRedis
+from mredis.database import MRedis
 
-gredis = GRedis(host='localhost', port=6379, decode_responses=True) 
-set1 = gredis.Set('test_set1')
-set2 = gredis.Set('test_set2')
+mredis = MRedis(host='localhost', port=6379, decode_responses=True) 
+set1 = mredis.Set('test_set1')
+set2 = mredis.Set('test_set2')
 
 set1.update({1, 2, 3})
 set2.update({2, 3, 4})
@@ -80,10 +80,10 @@ assert set(result) == {'1'}
 
 ```python
 
-from gredis.database import GRedis
+from mredis.database import MRedis
 
-gredis = GRedis(host='localhost', port=6379, decode_responses=True) 
-sorted_set = gredis.SortedSet('test_sorted_set')
+mredis = MRedis(host='localhost', port=6379, decode_responses=True) 
+sorted_set = mredis.SortedSet('test_sorted_set')
 
 sorted_set.append({'third': 3, 'second': 2, 'first': 1})
 
@@ -105,10 +105,10 @@ for member, score in sorted_set:
 
 ```python
 
-from gredis.database import GRedis
+from mredis.database import MRedis
 
-gredis = GRedis(host='localhost', port=6379, decode_responses=True) 
-list = gredis.List('test_list')
+mredis = MRedis(host='localhost', port=6379, decode_responses=True) 
+list = mredis.List('test_list')
 
 list.append(10)
 list.extend([20, 30, 40])
@@ -128,7 +128,7 @@ from multiprocessing import Process
 import simplejson as json
 from redis import Redis
 
-from gredis.channel import Client, Server
+from mredis.channel import Client, Server
 
 redis = Redis(host='localhost', port=6379, decode_responses=True)
 

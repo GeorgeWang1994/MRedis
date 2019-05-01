@@ -1,0 +1,1 @@
+-e git+https://github.com/GeorgeWang1994/MRedis.git#egg=redis

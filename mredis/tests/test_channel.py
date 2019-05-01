@@ -11,7 +11,7 @@ from multiprocessing import Process
 import simplejson as json
 from redis import Redis
 
-from gredis.channel import Client, Server
+from mredis.channel import Client, Server
 
 redis = Redis(host='localhost', port=6379, decode_responses=True)
 
