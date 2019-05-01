@@ -24,7 +24,7 @@ class Container(object):
     """
     基础空间
     """
-    def __init__(self, database=None, cache_key=None):
+    def __init__(self, database, cache_key):
         self.database = database
         self.cache_key = cache_key
 

@@ -8,6 +8,6 @@ setup(
     description="GRedis",
     auth="george wang",
     author_email="georgewang1994@163.com",
-    install_requires=['redis>=3.0.0'],
+    install_requires=['redis>=3.0.0', 'simplejson'],
     packages=find_packages(),
 )
