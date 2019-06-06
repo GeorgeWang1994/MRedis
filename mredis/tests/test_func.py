@@ -29,3 +29,27 @@ class TestLock(TestBasic):
 
         result = get_sum(1, 1)
         self.assertEqual(result, 2)
+
+
+class TestFunCache(TestBasic):
+    """
+    测试锁
+    """
+    def setUp(self):
+        super(TestFunCache, self).setUp()
+
+    def test_function_cache(self):
+        """
+        测试函数缓存
+        """
+        @self.mredis.func_cache()
+        def get_sum(a, b):
+            return a + b
+
+        cache_key = self.mredis._get_func_cache_key_id(get_sum, (1, 1), {})
+        self.assertFalse(self.mredis.exists(cache_key))
+
+        result = get_sum(1, 1)
+        self.assertEqual(result, 2)
+
+        self.assertTrue(self.mredis.exists(cache_key))

@@ -5,7 +5,7 @@ from setuptools import setup
 
 setup(
     name="MRedis",
-    version="0.1",
+    version="0.2",
     description="redis wrapper",
     author="georgewang",
     author_email="georgewang1994@163.com",

@@ -2,3 +2,5 @@
 /.project
 *.pyc
 .gitignore
+*.egg-info/
+
