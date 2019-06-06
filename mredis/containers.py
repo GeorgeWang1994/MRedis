@@ -1,7 +1,8 @@
 # -*- coding: UTF-8 -*-
+import pickle
 from collections import Iterable
 
-from .exception import TypeException, EmptyException, IndexErrorException
+from mredis.exception import TypeException, EmptyException, IndexErrorException
 
 
 class Sortable(object):
@@ -67,6 +68,27 @@ class Container(object):
         :return:
         """
         return self.database.ttl(self.cache_key)
+
+    def set_pickle(self, data, expire_time=None):
+        """
+        设置序列化
+        :return:
+        """
+        return self.database.set(self.cache_key, pickle.dumps(data), expire_time)
+
+    def get_pickle(self):
+        """
+        获取序列化的值
+        :return:
+        """
+        res = self.database.get(self.cache_key)
+        if not res:
+            return ""
+
+        try:
+            return pickle.loads(res)
+        except TypeError:
+            return ""
 
 
 class Hash(Container):

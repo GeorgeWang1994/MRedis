@@ -1,12 +1,16 @@
 # -*- coding: UTF-8 -*-
 
+import functools
+import hashlib
+from collections import Iterable
+
 from redis import Redis
 
-from .badge import BadgeManager
-from .containers import List, Set, SortedSet, Hash, HyperLogLog
-from .counter import Counter
-from .lock import Lock
-from .rate_limit import RateLimit
+from mredis.badge import BadgeManager
+from mredis.containers import List, Set, SortedSet, Hash, HyperLogLog, Container
+from mredis.counter import Counter
+from mredis.lock import Lock
+from mredis.rate_limit import RateLimit
 
 
 class MRedis(Redis):
@@ -108,3 +112,68 @@ class MRedis(Redis):
         :return:
         """
         return BadgeManager(self, basic_cache_key, expire_time)
+
+    def _get_func_cache_key_id(self, func, args, kwargs):
+        """
+        函数缓存的key
+        :return:
+        """
+        str_value = (func.__name__ + str(args) + str(kwargs)).encode('utf-8')
+        md5 = hashlib.md5()
+        md5.update(str_value)
+        return md5.hexdigest()
+
+    def func_cache(self, expire_times=60 * 60):
+        """
+        函数缓存实现
+        :param expire_times:
+        :return:
+        """
+        def wrapper(func):
+            @functools.wraps(func)
+            def _wrapper(*args, **kwargs):
+                cache_key = self._get_func_cache_key_id(func, args, kwargs)
+                container = Container(database=self, cache_key=cache_key)
+                res = container.get_pickle()
+                if not res:
+                    res = func(*args, **kwargs)
+                    container.set_pickle(res, expire_times)
+                return res
+
+            return _wrapper
+
+        return wrapper
+
+    def _get_func_mutex_key_id(self, func, lock_params):
+        """
+        函数锁的key
+        :return:
+        """
+        str_value = (func.__name__+ str(lock_params)).encode('utf-8')
+        md5 = hashlib.md5()
+        md5.update(str_value)
+        return md5.hexdigest()
+
+    def func_mutex(self, lock_params=(), default=None, lock_times=1):
+        """
+        函数锁实现
+        :param lock_params: 根据指定的参数加锁
+        :param default: 默认返回值
+        :param lock_times: 默认锁的时间
+        :return:
+        """
+        if not isinstance(lock_params, Iterable):
+            raise Exception("参数类型错误")
+
+        def wrapper(func):
+            @functools.wraps(func)
+            def _wrapper(*args, **kwargs):
+                cache_key = self._get_func_mutex_key_id(func, lock_params)
+                lock = Lock(database=self, cache_key=cache_key)
+                if lock.acquire(expire_time=lock_times):
+                    res = func(*args, **kwargs)
+                    lock.release()
+                    return res
+                return default
+            return _wrapper
+        return wrapper
